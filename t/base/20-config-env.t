@@ -27,7 +27,7 @@ subtest 'heroku configuration' => sub {
     );
 
     is(
-        $ENV{DISABLE_WP_CRON}, 'false',
+        $ENV{DISABLE_WP_CRON}, 'true',
         'Env is configured to disable WP cron'
     );
 
