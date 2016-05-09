@@ -1,5 +1,6 @@
 {
     "name": "frc/wp-harness",
+    "license": "MIT",
     "require": {
         "wp-cli/wp-cli": "^0.23.1"
     }
