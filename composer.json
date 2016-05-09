@@ -1,0 +1,6 @@
+{
+    "name": "frc/wp-harness",
+    "require": {
+        "wp-cli/wp-cli": "^0.23.1"
+    }
+}
