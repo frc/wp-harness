@@ -3,5 +3,15 @@ use JSON qw/decode_json/;
 
 my $plugins = `wp plugin list --format=json`;
 $plugins = decode_json($plugins);
-my @updates = map { ( $_->{update} eq 'available' && $_->{status} eq 'active' ) ? $_->{name} : () } @$plugins;
-is(join(', ', @updates), '', 'No plugins to be updated');
+
+subtest 'all plugins are up to date' => sub {
+    plan skip_all => 'no plugins found' unless @$plugins;
+    plan tests => scalar @$plugins;
+
+    foreach (@$plugins) {
+        ok(
+            $_->{update} eq 'none',
+            'Plugin ' . $_->{name} . ' is up to date'
+        );
+    }
+};
