@@ -1,0 +1,227 @@
+#!/usr/bin/env bash
+
+# WP & Heroku database migration tool.
+######################################
+#
+# migratedb [from] [to]
+#
+# [from] defines the migration source. It can also be defined with
+# environment variable MIGRATEDB_FROM.
+#
+# [to] is optional and defaults to "." (local wp-cli import).
+# It can also be defined with environment variable MIGRATEDB_TO.
+#
+# SEARCH-REPLACE: after import to local wp-cli, and if environment
+# variable MIGRATEDB_SEARCH is specified, an optional search-replace
+# is performed from MIGRATEDB_SEARCH to a) MIGRATEDB_REPLACE, or
+# b) "HEROKU_APP_NAME.herokuapp.com" (use-case: Heroku staging apps),
+# or c) '//localhost:5000'.
+#
+# Suppored formats for specifying database source and destination:
+#
+# LOCAL DIRECTORY (eg. "."): name specifies an existing directory
+# on local filesystem, and this directory contains file "wp-cli.yml".
+# Database export / import is done by invoking wp-cli "db export" or
+# "db import" in the specified directory.
+#
+# LOCAL FILE (eg. "dump.sql"): name specifies an existing file on local
+# filesystem, and it ends with prefix ".sql". Export/import is done
+# to/from the specified "mysqldump" file.
+#
+# MYSQL URI (eg. "mysql://user:pass@host:port/db"): connection string
+# to an existing mysql database on specified server.
+#
+# HEROKU DATABASE NAME (eg. "heroku-app-1234::jawsdb"): like MySQL URI,
+# which is first resolved by calling heroku config:get for the given
+# app name. Configuration key (eg. "jawsdb") is first uppercased, and
+# tried as such and with prefix "_URL" (eg. "JAWSDB_URL"). Config value
+# must be a valid mysql URI.
+#
+# HEROKU APP NAME (eg. "heroku-app-1234"): like above, but some known
+# mysql add-on names are tried (eg. CLEARDB_URL, JAWSDB_URL,
+# DATABASE_URL, ...) This option is available only for source parameter.
+# First matching config key, that contains is used.
+#
+#
+# EXAMPLES
+#
+# Copy production database to local wp:
+# $ migratedb app-production
+#
+# Copy production db to local & perform search-replace. Eg. on Heroku CI the
+# envs MIGRATEDB_SEARCH (and MIGRATEDB_FROM) are specified in CI configs, so
+# no deployment specific data (or secrects) are needed:
+# $ MIGRATEDB_SEARCH='//app-production.herokuapp.com' migratedb
+#
+#
+#
+
+set -o errexit  # always exit on error
+set -o pipefail # do not ignore exit codes when piping output
+set -o nounset  # fail on unset variables
+
+# Global variables
+declare heroku_app heroku_db
+declare url_username url_password url_hostname url_port url_database
+
+# Parse URI ($1) of format mysql://user:pass@host:port/database
+# Result is set to global variables url_*
+readonly RFC3986RE='^(([^:/?#]+):)?(//((([^:/?#]+)(:([^/?#]*))?@)?([^:/?#]+)(:([0-9]+))?))?(/([^?#]*))(\?([^#]*))?(#(.*))?'
+parse_mysql_url() {
+  local url=$1
+  [[ $url =~ $RFC3986RE ]] && [[ ${BASH_REMATCH[2]} == 'mysql' ]] || return 1
+  url_username=${BASH_REMATCH[6]} url_password=${BASH_REMATCH[8]}
+  url_hostname=${BASH_REMATCH[9]} url_port=${BASH_REMATCH[11]}
+  url_database=${BASH_REMATCH[13]}
+}
+
+# Get and parse mysql configration key ($2) of the Heroku application ($1)
+# Set global heroku_app and heroku_db variables if valid match is found
+heroku_get_url() {
+  local app=$1 db=$2
+  local database_url=$(heroku config:get "$db" -a "$app")
+  [[ -n $database_url ]] || return 1
+  parse_mysql_url "$database_url" || return 1
+  heroku_app=$app heroku_db=$db
+}
+
+# Parse app::db string ($1), return 127 if format does not match
+# Configuration keys db and db_URL are then queried and parsed like above
+heroku_try_dbname() {
+  [[ $1 =~ ^([^:]+)::(.*) ]] || return 127
+  local app=${BASH_REMATCH[1]} db=${BASH_REMATCH[2]}
+  db=$(echo $db | awk '{print toupper($0)}')
+  heroku_get_url "$app" "$db" ||
+  heroku_get_url "$app" "${db}_URL"
+}
+
+# Try app::db ($1) like above – iff format does not match,
+# query app ($1) config for common known MySQL database configs
+heroku_try_dbname_else_app() {
+  local app=$1
+  heroku_try_dbname "$app" && return
+  if [[ $? == 127 ]]; then
+    heroku_get_url "$app" CLEARDB_URL  ||
+    heroku_get_url "$app" JAWSDB_URL   ||
+    heroku_get_url "$app" DATABASE_URL
+  else
+    return 1
+  fi
+}
+
+# Do mysqldump with the know global variables url_*
+# Save dump to a given local file ($1)
+do_mysqldump() {
+  local dumpname=$1
+  mysqldump -u "$url_username" ${url_password:+-p"$url_password"} -h "$url_hostname" ${url_port:+-P "$url_port"} "$url_database" >"$dumpname" 2>/dev/null
+  local dumpsize=$(wc -c <"$dumpname")
+  echo "mysqldump:$dumpsize bytes downloaded"
+}
+
+# Run mysql cli with the know global variables url_*
+# Import dumpfile ($1) to the database
+do_mysql() {
+  local dumpname=$1
+  mysql -u "$url_username" ${url_password:+-p"$url_password"} -h "$url_hostname" ${url_port:+-P "$url_port"} "$url_database" <"$dumpname" 2>/dev/null
+  local dumpsize=$(wc -c <"$dumpname")
+  echo "mysql:$dumpsize bytes imported"
+}
+
+# Run wp-cli in the given cwd ($1), pass rest of the arguments to wp-cli
+# Use project-local vendor/bin/wp binary if available.
+do_wpcli() {
+  pushd $1 >/dev/null
+  local wp=$(which vendor/bin/wp || which wp || echo wp)
+  $wp ${@:2}
+  popd >/dev/null
+}
+
+# Absolute path to the file
+absfilepath() {
+  echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+}
+
+# Check that the user is logged in to Heroku.
+check_heroku_auth() {
+  if ! heroku auth:whoami 2>/dev/null 1>&2; then
+    echo "Abort. Not logged in to Heroku."
+    exit 100
+  fi
+}
+
+# Perform wp-cli search-replace
+do_searchreplace() {
+  local path=$1 oldname newname answer
+  if [[ -n ${MIGRATEDB_SEARCH+x} ]]; then
+    oldname=$MIGRATEDB_SEARCH
+    if [[ -n ${MIGRATEDB_REPLACE+x} ]]; then
+      newname=$MIGRATEDB_REPLACE
+    elif [[ -n ${HEROKU_APP_NAME+x} ]]; then
+      newname="//$HEROKU_APP_NAME.herokuapp.com"
+    else
+      newname='//localhost:5000'
+    fi
+    echo "SEARCH-REPLACE: '$oldname' -> '$newname'"
+    do_wpcli "$path" "search-replace" "$oldname" "$newname"
+    do_wpcli "$path" "cache" "flush"
+  fi
+}
+
+# Prompt user for confirmation. STDOUT must be a terminal.
+confirm_with_app_name() {
+  local app=$1 answer
+  [[ -t 1 ]] || return 1
+  echo "Warning! Overwriting existing data!"
+  read -p "Confirm this action by typing the app name here: " answer
+  [[ $answer == $app ]] || return 1
+}
+
+# Script command-line arguments
+# $from ($1) – database source, required
+# $to ($2) – database destination, default is '.' (local wp-cli)
+readonly from=${1:-$MIGRATEDB_FROM}
+readonly to=${2:-${MIGRATEDB_TO:-.}}
+
+echo "MySQL database migration"
+echo "------------------------"
+declare dumpname="/tmp/$$-migratedb-dump.sql"
+trap "rm -rf $dumpname" EXIT # $dumpname is evaluated here
+
+if [[ -d $from && -f "$from/wp-cli.yml" ]]; then
+  echo "FROM: wp-cli in path '$from'"
+  do_wpcli "$from" "db" "export" "$dumpname"
+elif [[ -f $from && $from =~ \.sql$ ]]; then
+  dumpname=$(absfilepath "$from")
+  echo "FROM: file '$dumpname'"
+elif parse_mysql_url "$from"; then
+  echo "FROM: MySQL hostname '$url_hostname' database '$url_database'"
+  do_mysqldump "$dumpname"
+elif check_heroku_auth && heroku_try_dbname_else_app "$from"; then
+  echo "FROM: Heroku app '$heroku_app' database '$heroku_db'"
+  do_mysqldump "$dumpname"
+else
+  echo "FROM: Unable to resolve. Abort."
+  exit 1
+fi
+
+if [[ -d $to && -f "$to/wp-cli.yml" ]]; then
+  echo "TO: wp-cli in path '$to'"
+  do_wpcli "$to" "db" "import" "$dumpname"
+  do_searchreplace "$to"
+elif [[ $to =~ \.sql$ ]]; then
+  echo "TO: file '$to'"
+  cp "$dumpname" "$to"
+elif parse_mysql_url "$to"; then
+  echo "TO: MySQL hostname '$url_hostname' database '$url_database'"
+  do_mysql "$dumpname"
+elif check_heroku_auth && heroku_try_dbname "$to"; then
+  echo "TO: Heroku app '$heroku_app' database '$heroku_db'"
+  if confirm_with_app_name "$heroku_app"; then
+    do_mysql "$dumpname"
+  else
+    echo "Abort. This action requires terminal confirmation."
+  fi
+else
+  echo "TO: Unable to resolve. Abort."
+  exit 1
+fi

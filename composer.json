@@ -1,7 +1,11 @@
 {
     "name": "frc/wp-harness",
     "license": "MIT",
-    "require": {
+    "bin": [
+        "bin/migratedb",
+        "bin/e2e-test"
+    ],
+   "require": {
         "wp-cli/wp-cli": "^1.5.0"
     }
 }
