@@ -3,7 +3,8 @@
     "license": "MIT",
     "bin": [
         "bin/migratedb",
-        "bin/e2e-test"
+        "bin/e2e-test",
+        "bin/platform-test"
     ],
    "require": {
         "wp-cli/wp-cli": "^1.5.0"
