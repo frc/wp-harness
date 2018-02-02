@@ -1,0 +1,16 @@
+{
+  "name": "@franticcom/wp-harness",
+  "repository": "github:frc/wp-harness",
+  "version": "1.0.11",
+  "directories": {
+    "bin": "./bin"
+  },
+  "files": [
+    "bin",
+    "t/**/*.t",
+    "README.md"
+  ],
+  "dependencies": {
+    "protractor": "~5.3.0"
+  }
+}
