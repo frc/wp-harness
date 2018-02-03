@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+testset=${1:-base}
+
 absdir=$(perl -MFile::Basename -MCwd -e'print File::Basename::dirname Cwd::abs_path shift' "$0")
 PATH="vendor/bin:$PATH"
-prove "$absdir/../t/base/"
+prove -v "$absdir/../t/$testset"

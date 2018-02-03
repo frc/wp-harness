@@ -7,14 +7,16 @@ ok(
 );
 diag "WordPress version is $ver";
 
-like(
-    `wp core check-update`, qr/WordPress is at the latest version/,
+`wp core check-update`;
+ok(
+    $? == 0,
     'WordPress is at the latest version'
 );
 
-like(
-    `wp core verify-checksums`, qr/WordPress install verifies against checksums/,
-    'WordPress install verifies against checksums'
+`wp core verify-checksums`;
+ok(
+    $? == 0,
+    'WordPress installation verifies against checksums'
 );
 
 `wp core is-installed`;
@@ -22,4 +24,3 @@ ok(
     $? == 0,
     'WordPress tables are installed'
 );
-

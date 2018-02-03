@@ -6,33 +6,22 @@ is(
 );
 
 is(
-    `wp eval 'echo defined("WP_CACHE") && WP_CACHE ? "YES" : "NO";'`, 'YES',
-    'WordPress is configured to load advanced-cache drop-in'
+    `WP_ENV='$$' wp eval 'echo WP_ENV;'`, "$$",
+    'WordPress define WP_ENV mirrors env WP_ENV'
 );
 
-my $running_on_heroku = $ENV{HOME} eq '/app' ? 1 : 0;
-
-subtest 'heroku configuration' => sub {
-    plan skip_all => 'not running in Heroku' if not $running_on_heroku;
-    plan tests => 4;
+subtest 'bedrock configuration' => sub {
+    plan tests => 2;
 
     is(
-        $ENV{FORCE_SSL_ADMIN}, 'true',
-        'Env is configured to force SSL for admin sessions'
+        `WP_ENV='production' wp eval 'echo defined("WP_DEBUG") && WP_DEBUG ? "YES" : "NO";'`,
+        'NO',
+        'WordPress in WP_ENV production has WP_DEBUG disabled'
     );
 
     is(
-        $ENV{WP_CACHE}, 'true',
-        'Env is configured to enable advanced cache'
-    );
-
-    is(
-        $ENV{DISABLE_WP_CRON}, 'true',
-        'Env is configured to disable WP cron'
-    );
-
-    is(
-        $ENV{WP_ENV}, 'production',
-        'Env is configured for production'
+        `WP_ENV='development' wp eval 'echo defined("WP_DEBUG") && WP_DEBUG ? "YES" : "NO";'`,
+        'YES',
+        'WordPress in WP_ENV development has WP_DEBUG enabled'
     );
 };
