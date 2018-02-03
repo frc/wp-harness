@@ -6,10 +6,9 @@ testspec=${E2E_SPEC:-"e2e/spec.conf.js"}
 testproc=${E2E_PROC:-"heroku-php-nginx -C config/heroku/nginx.conf web"}
 # TODO: extract $testproc default from Procfile, if it exists
 
-if ! [[ -f $testspec ]]; then
-  echo "No e2e tests defined: $testspec not found."
-  exit 1
-fi
+hash npx 2>/dev/null || { echo >&2 "Unable to find npx in PATH."; exit 1; }
+hash chromedriver 2>/dev/null || { echo >&2 "Unable to find chromedriver in PATH."; exit 1; }
+[[ -f $testspec ]] || { echo >&2 "No e2e tests defined: $testspec not found."; exit 1; }
 
 PORT=$testport $testproc >/tmp/$$-http-log.txt 2>&1 &
 proc_pid=$!
@@ -17,11 +16,8 @@ proc_pid=$!
 chromedriver >/dev/null 2>&1 &
 chromedriver_pid=$!
 
-# TODO: this is arbitrary, but "some time"
-# is required for nginx to be ready
-sleep 3
-
-protractor "$testspec" --baseUrl "http://localhost:$testport/"
+npx wait-on -l "tcp:$testport"
+npx protractor "$testspec" "--baseUrl" "http://localhost:$testport/"
 protractor_exit=$?
 
 echo "--- http server log ---"
