@@ -1,7 +1,7 @@
 {
   "name": "@franticcom/wp-harness",
   "repository": "github:frc/wp-harness",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "engines": {
     "npm": ">=5.2.0"
   },
