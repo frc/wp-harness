@@ -8,7 +8,7 @@ testproc=${E2E_PROC:-"heroku-php-nginx -C config/heroku/nginx.conf web"}
 
 hash npx 2>/dev/null || { echo >&2 "Unable to find npx in PATH."; exit 1; }
 hash chromedriver 2>/dev/null || { echo >&2 "Unable to find chromedriver in PATH."; exit 1; }
-[[ -f $testspec ]] || { echo >&2 "No e2e tests defined: $testspec not found."; exit 1; }
+[[ -f $testspec ]] || { echo >&2 "No e2e tests defined: $testspec not found."; exit 1; }
 
 PORT=$testport $testproc >/tmp/$$-http-log.txt 2>&1 &
 proc_pid=$!
