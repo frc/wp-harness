@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+PATH="vendor/bin:$PATH"
 testport=${E2E_PORT:-"5000"}
 testspec=${E2E_SPEC:-"e2e/spec.conf.js"}
 testproc=${E2E_PROC:-"heroku-php-nginx -C config/heroku/nginx.conf web"}
