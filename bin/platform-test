@@ -1,3 +1,5 @@
 #!/usr/bin/env bash
 
-prove vendor/frc/wp-harness/t/base/
+dir=$(dirname $0)
+
+prove "$dir/../t/base/"
