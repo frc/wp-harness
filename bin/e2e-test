@@ -13,10 +13,10 @@ hash chromedriver 2>/dev/null || { echo >&2 "Unable to find chromedriver in PATH
 PORT=$testport $testproc >/tmp/$$-http-log.txt 2>&1 &
 proc_pid=$!
 
-chromedriver >/dev/null 2>&1 &
+chromedriver --port=9515 >/dev/null 2>&1 &
 chromedriver_pid=$!
 
-npx wait-on -l "tcp:$testport"
+npx wait-on -l "tcp:$testport" "tcp:9515"
 npx protractor "$testspec" "--baseUrl" "http://localhost:$testport/"
 protractor_exit=$?
 
