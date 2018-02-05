@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 
-testset=${1:-base}
-
 absdir=$(perl -MFile::Basename -MCwd -e'print File::Basename::dirname Cwd::abs_path shift' "$0")
 PATH="vendor/bin:$PATH"
-prove -v "$absdir/../t/$testset"
+
+declare -a paths=()
+for name in ${@:1}; do
+    p="$absdir/../t/$name"
+    if [[ -d $p ]]; then
+        paths+=("$p")
+    else
+        echo >&2 "Warning: directory $p not found."
+    fi
+done
+
+prove ${paths[@]:-"$absdir/../t/base"}

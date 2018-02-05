@@ -1,4 +1,4 @@
-use Test::More tests => 4;
+use Test::More tests => 3;
 
 my $ver = `wp core version`; chomp $ver;
 ok(
@@ -6,12 +6,6 @@ ok(
     'WordPress is installed and can be found by wp-cli'
 );
 diag "WordPress version is $ver";
-
-`wp core check-update`;
-ok(
-    $? == 0,
-    'WordPress is at the latest version'
-);
 
 `wp core verify-checksums`;
 ok(
