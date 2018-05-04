@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+PATH="vendor/bin:$PATH"
+testport=${E2E_PORT:-"5000"}
+testproc=${E2E_PROC:-"heroku-php-nginx -C config/heroku/nginx.conf web"}
+# TODO: extract $testproc default from Procfile, if it exists
+
+hash npx 2>/dev/null || { echo >&2 "Unable to find npx in PATH."; exit 1; }
+hash chromedriver 2>/dev/null || { echo >&2 "Unable to find chromedriver in PATH."; exit 1; }
+
+PORT=$testport $testproc >/tmp/$$-http-log.txt 2>&1 &
+proc_pid=$!
+
+npx wait-on -l "tcp:$testport"
+npx pa11y-ci
+pa11y_exit=$?
+
+echo "--- http server log ---"
+cat /tmp/$$-http-log.txt
+echo "--- http server log ---"
+
+kill $chromedriver_pid $proc_pid
+exit $pa11y_exit
