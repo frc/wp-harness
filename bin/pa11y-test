@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+
+PATH="vendor/bin:$PATH"
+testport=${E2E_PORT:-"5000"}
+
+
+if [ -d 'bedrock-on-heroku' ]; then
+    config='config/app_nginx.conf.php'
+    path='bedrock-on-heroku/web'
+elif [ -d 'web' ]; then
+    config='config/heroku/nginx.conf'
+    path='web'
+elif [ -d 'public' ]; then
+    config='nginx.conf'
+    path='public'
+else
+    config='config/heroku/nginx.conf'
+    path='web'
+fi
+
+testproc=${E2E_PROC:-"heroku-php-nginx -C $config $path"}
+
+
+if [ -f 'tests/pa11y/pa11y.conf.json' ]; then
+    testSpec='tests/pa11y/pa11y.conf.json'
+else
+    testSpec='pa11y/pa11y.conf.json'
+fi
+
+testspec=${E2E_SPEC:-"$testSpec"}
+
+hash npx 2>/dev/null || { echo >&2 "Unable to find npx in PATH."; exit 1; }
+hash chromedriver 2>/dev/null || { echo >&2 "Unable to find chromedriver in PATH."; exit 1; }
+[[ -f $testspec ]] || { echo >&2 "No pa11y tests defined: $testspec not found."; exit 1; }
+
+PORT=$testport $testproc >/tmp/$$-http-log.txt 2>&1 &
+proc_pid=$!
+
+
+chromedriver --port=9515 >/dev/null 2>&1 &
+chromedriver_pid=$!
+
+npx wait-on -l "tcp:$testport" "tcp:9515"
+npx pa11y-ci --config "$testspec"
+pa11y_exit=$?
+
+echo "--- http server log ---"
+cat /tmp/$$-http-log.txt
+echo "--- http server log ---"
+
+kill $chromedriver_pid $proc_pid
+exit $pa11y_exit
