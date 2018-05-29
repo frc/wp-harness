@@ -19,7 +19,6 @@ else
 fi
 
 testproc=${E2E_PROC:-"heroku-php-nginx -C $config $path"}
-# TODO: extract $testproc default from Procfile, if it exists
 
 hash npx 2>/dev/null || { echo >&2 "Unable to find npx in PATH."; exit 1; }
 hash chromedriver 2>/dev/null || { echo >&2 "Unable to find chromedriver in PATH."; exit 1; }
