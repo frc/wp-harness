@@ -2,7 +2,14 @@
 
 PATH="vendor/bin:$PATH"
 testport=${E2E_PORT:-"5000"}
-testspec=${E2E_SPEC:-"e2e/spec.conf.js"}
+
+if [ -f 'tests/e2e/spec.conf.js' ]; then
+    jsSpec='tests/e2e/spec.conf.js'
+else
+    jsSpec='e2e/spec.conf.js'
+fi
+
+testspec=${E2E_SPEC:-"$jsSpec"}
 
 if [ -d 'bedrock-on-heroku' ]; then
     config='config/app_nginx.conf.php'
