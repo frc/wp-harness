@@ -131,7 +131,12 @@ do_mysql() {
 # Use project-local vendor/bin/wp binary if available.
 do_wpcli() {
   pushd $1 >/dev/null
-  PATH="vendor/bin:$PATH" wp ${@:2}
+  local dotenv=""
+  if [[ -f ".env" ]]; then
+    dotenv=$(egrep -v '^#' .env | xargs)
+    echo "Loaded .env: $dotenv"
+  fi
+  PATH="vendor/bin:$PATH" eval $dotenv wp ${@:2}
   popd >/dev/null
 }
 
