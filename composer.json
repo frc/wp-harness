@@ -3,6 +3,7 @@
     "license": "MIT",
     "bin": [
         "bin/migratedb",
+        "bin/php-nginx-setup",
         "bin/e2e-test",
         "bin/platform-test",
         "bin/pa11y-test"

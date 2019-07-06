@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+PATH="vendor/bin:$PATH"
+
+if [ -d 'bedrock-on-heroku' ]; then
+    config='config/app_nginx.conf.php'
+    path='bedrock-on-heroku/web'
+elif [ -d 'web' ]; then
+    config='config/heroku/nginx.conf'
+    path='web'
+elif [ -d 'public' ]; then
+    config='nginx.conf'
+    path='public'
+else
+    config='config/heroku/nginx.conf'
+    path='web'
+fi
+
+testproc=${E2E_PROC:-"heroku-php-nginx -C $config $path"}
+testport=${E2E_PORT:-"5000"}
+
+PORT=$testport $testproc >/tmp/http-log.txt 2>&1 & sleep 5
